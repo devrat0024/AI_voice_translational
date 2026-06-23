@@ -52,8 +52,8 @@ def run_api(args):
     port = args.port or int(os.getenv("PORT", "8000"))
     reload = args.reload or os.getenv("ENV", "development") == "development"
 
-    print(f"\n🚀  Starting Clinical AI Scribe API at http://{host}:{port}")
-    print(f"📖  Swagger UI available at http://{host}:{port}/docs\n")
+    print(f"\n[API] Starting Clinical AI Scribe API at http://{host}:{port}")
+    print(f"[Docs] Swagger UI available at http://{host}:{port}/docs\n")
     uvicorn.run("backend.app.main:app", host=host, port=port, reload=reload)
 
 

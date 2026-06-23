@@ -8,9 +8,11 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    role: Optional[str] = "doctor"
 
 class UserOut(UserBase):
     id: int
+    role: str
     
     class Config:
         from_attributes = True
@@ -21,6 +23,18 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: Optional[str] = None
+
+class AuditLogOut(BaseModel):
+    id: int
+    user_id: Optional[int]
+    action: str
+    resource: Optional[str]
+    timestamp: datetime
+    details: Optional[str]
+
+    class Config:
+        from_attributes = True
+
 
 # Audio Storage Schemas
 class AudioRecordOut(BaseModel):
