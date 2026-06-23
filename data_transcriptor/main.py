@@ -4,6 +4,11 @@ import logging
 import sys
 from pathlib import Path
 
+# Add project root to sys.path so backend and data_transcriptor are importable
+root_dir = Path(__file__).resolve().parent.parent
+if str(root_dir) not in sys.path:
+    sys.path.insert(0, str(root_dir))
+
 from backend.app.config import init_directories, OUTPUT_DIR, HF_TOKEN
 from data_transcriptor.transcription.runner import ClinicalPipeline
 from data_transcriptor.transcription.schemas import PipelineConfig
