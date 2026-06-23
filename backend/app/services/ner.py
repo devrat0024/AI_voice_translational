@@ -1,8 +1,8 @@
 """
 backend/app/services/ner.py
-LEGACY FILE — now delegates to the unified app package.
+LEGACY FILE — now delegates to the unified transcription package.
 """
-from app.transcription.medical_ner import MedicalEntityExtractor
+from data_transcriptor.transcription.medical_ner import MedicalEntityExtractor
 
 # Instantiate once at startup to optimize memory loading
 extractor = MedicalEntityExtractor(mode="auto")
@@ -10,4 +10,8 @@ extractor = MedicalEntityExtractor(mode="auto")
 
 def run_ner_extraction(text: str) -> dict:
     """Extracts clinical entities (symptoms and medicines) from raw text."""
-    return extractor.extract_entities(text)
+    entities = extractor.extract_entities(text)
+    return {
+        "symptoms": entities.symptoms,
+        "medicines": entities.medicines
+    }

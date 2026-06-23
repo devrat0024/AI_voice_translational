@@ -14,6 +14,10 @@ except ImportError:
 # BASE_DIR should resolve to the project root (AI_scribe/)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
+import sys
+if str(BASE_DIR) not in sys.path:
+    sys.path.insert(0, str(BASE_DIR))
+
 # Unified data directories
 DATA_DIR = BASE_DIR / "data"
 RAW_DIR = DATA_DIR / "raw"

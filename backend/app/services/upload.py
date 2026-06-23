@@ -1,7 +1,7 @@
 import shutil
 from pathlib import Path
 from fastapi import UploadFile
-from app.config import UPLOAD_DIR
+from backend.app.config import UPLOAD_DIR
 
 def save_uploaded_file(upload_file: UploadFile) -> Path:
     """Saves an uploaded file to the local storage directory and returns its Path."""

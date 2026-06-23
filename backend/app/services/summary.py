@@ -1,12 +1,9 @@
-import sys
+"""
+backend/app/services/summary.py
+LEGACY FILE — now delegates to the unified transcription package.
+"""
 import os
-from app.config import TRANSCRIPTOR_DIR
-
-# Ensure transcription package imports work
-if str(TRANSCRIPTOR_DIR) not in sys.path:
-    sys.path.append(str(TRANSCRIPTOR_DIR))
-
-from transcription.llm_layer import ClinicalIntelligenceLayer
+from data_transcriptor.transcription.llm_layer import ClinicalIntelligenceLayer
 
 # Instantiate the intelligence layer (automatically picks up environment credentials)
 groq_model = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
