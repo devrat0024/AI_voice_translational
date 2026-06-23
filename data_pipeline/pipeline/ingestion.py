@@ -3,7 +3,7 @@ import shutil
 import logging
 from pathlib import Path
 from datetime import datetime
-from pipeline.config import (
+from .config import (
     RAW_AUDIO_DIR,
     RAW_PATIENTS_DIR,
     RAW_DOCUMENTS_DIR,

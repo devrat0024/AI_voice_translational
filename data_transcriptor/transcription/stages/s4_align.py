@@ -1,19 +1,15 @@
 """
 Stage 4 — Transcript-Speaker Alignment
-
-Matches each Whisper segment to its most likely speaker via timestamp overlap.
-Writes to context: 'dialogue' (List[DialogueTurn])
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from app.core.schemas import DialogueTurn, StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import DialogueTurn, StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 def _align(segments, diarization_turns) -> list[DialogueTurn]:
-    """Align Whisper segments with speaker turns via maximum timestamp overlap."""
     dialogue = []
     for seg in segments:
         best_speaker = "SPEAKER_UNKNOWN"
@@ -25,7 +21,6 @@ def _align(segments, diarization_turns) -> list[DialogueTurn]:
                 max_overlap = overlap
                 best_speaker = turn["speaker"]
 
-        # Nearest-neighbor fallback when no overlap found
         if max_overlap == 0.0 and diarization_turns:
             closest = min(
                 diarization_turns,
@@ -51,6 +46,5 @@ class AlignmentStage(PipelineStage):
         dialogue = _align(segments, diarization_turns)
         context["dialogue"] = dialogue
 
-        # Count unique speakers in result
         unique_speakers = len({d.speaker for d in dialogue})
         return StageStatus.SUCCESS, f"{len(dialogue)} turns, {unique_speakers} unique speakers"

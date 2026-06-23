@@ -1,15 +1,12 @@
 """
 Stage 6 — Medical Named Entity Recognition (NER)
-
-Extracts clinical entities (symptoms, medicines) from the corrected transcript.
-Writes to context: 'medical_entities' (MedicalEntities)
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from app.core.schemas import MedicalEntities, StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import MedicalEntities, StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 class NERStage(PipelineStage):
@@ -18,17 +15,14 @@ class NERStage(PipelineStage):
     optional = True
 
     def _execute(self, context: PipelineContext) -> tuple[StageStatus, Optional[str]]:
-        from app.transcription.medical_ner import MedicalEntityExtractor
+        from data_transcriptor.transcription.medical_ner import MedicalEntityExtractor
 
         config = context["config"]
-        # Use corrected text if available, otherwise fall back to raw
         text = context.get("corrected_text") or context.get("raw_text", "")
 
         extractor = MedicalEntityExtractor(mode=config.ner_mode)
         raw_entities = extractor.extract_entities(text)
 
-        # Build full lists (extractor returns only primary values; we enrich here)
-        # For now the extractor returns primary symptom/medicine as strings
         symptom_val = raw_entities.get("symptom", "None")
         medicine_val = raw_entities.get("medicine", "None")
 

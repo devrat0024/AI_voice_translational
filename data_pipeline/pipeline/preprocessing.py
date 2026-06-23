@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 from pydub import AudioSegment
 from pydub.effects import normalize
-from pipeline.config import (
+from .config import (
     PROCESSED_AUDIO_DIR,
     PROCESSED_DOCUMENTS_DIR,
     TARGET_SAMPLE_RATE,

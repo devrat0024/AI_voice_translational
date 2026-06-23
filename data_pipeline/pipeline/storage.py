@@ -2,7 +2,7 @@ import sqlite3
 import logging
 from datetime import datetime
 from pathlib import Path
-from pipeline.config import DB_PATH
+from .config import DB_PATH
 
 logger = logging.getLogger(__name__)
 

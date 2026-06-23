@@ -2,7 +2,7 @@ import os
 import shutil
 import pandas as pd
 from pathlib import Path
-from pipeline.config import (
+from data_pipeline.pipeline.config import (
     init_directories,
     RAW_PATIENTS_DIR,
     RAW_DOCUMENTS_DIR,

@@ -1,28 +1,14 @@
 """
-app/core/runner.py — Clinical AI Pipeline Orchestrator
-
-Runs all 8 stages sequentially, collects typed results, and assembles
-the final PipelineResult. Saves JSON output automatically.
-
-Usage:
-    from app.core.runner import ClinicalPipeline
-    from app.core.schemas import PipelineConfig
-
-    config = PipelineConfig(whisper_model="base", groq_api_key="...")
-    pipeline = ClinicalPipeline(config)
-    result = pipeline.run("path/to/audio.mp3")
-
-    print(result.model_dump_json(indent=2))
+data_transcriptor/transcription/runner.py — Clinical AI Pipeline Orchestrator
 """
 from __future__ import annotations
 
-import json
 import logging
 import time
 from pathlib import Path
 from typing import List, Optional
 
-from app.core.schemas import (
+from data_transcriptor.transcription.schemas import (
     ClinicalIntelligenceResult,
     PipelineConfig,
     PipelineMetadata,
@@ -30,19 +16,18 @@ from app.core.schemas import (
     StageStatus,
     TranscriptionResult,
 )
-from app.core.stages.base import PipelineContext, PipelineStage
-from app.core.stages.s1_load import AudioLoadStage
-from app.core.stages.s2_transcribe import TranscriptionStage
-from app.core.stages.s3_diarize import DiarizationStage
-from app.core.stages.s4_align import AlignmentStage
-from app.core.stages.s5_correct import MedicalCorrectionStage
-from app.core.stages.s6_ner import NERStage
-from app.core.stages.s7_soap import SOAPStage
-from app.core.stages.s8_summary import ClinicalSummaryStage
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
+from data_transcriptor.transcription.stages.s1_load import AudioLoadStage
+from data_transcriptor.transcription.stages.s2_transcribe import TranscriptionStage
+from data_transcriptor.transcription.stages.s3_diarize import DiarizationStage
+from data_transcriptor.transcription.stages.s4_align import AlignmentStage
+from data_transcriptor.transcription.stages.s5_correct import MedicalCorrectionStage
+from data_transcriptor.transcription.stages.s6_ner import NERStage
+from data_transcriptor.transcription.stages.s7_soap import SOAPStage
+from data_transcriptor.transcription.stages.s8_summary import ClinicalSummaryStage
 
 logger = logging.getLogger(__name__)
 
-# The ordered list of pipeline stages
 _STAGES: List[PipelineStage] = [
     AudioLoadStage(),
     TranscriptionStage(),
@@ -56,37 +41,11 @@ _STAGES: List[PipelineStage] = [
 
 
 class ClinicalPipeline:
-    """
-    Structured Clinical AI Pipeline.
-
-    Runs 8 sequential stages on a clinical audio file and produces
-    a fully typed PipelineResult with rich structured JSON output.
-
-    Stages:
-      1. AudioLoad        — Validate file, extract metadata
-      2. Transcription    — Whisper ASR
-      3. Diarization      — Speaker identification (pyannote / simulation)
-      4. Alignment        — Timestamp-overlap speaker-segment mapping
-      5. MedCorrection    — Groq LLM medical spelling correction
-      6. NER              — Medical named entity extraction
-      7. SOAP             — Groq LLM SOAP note generation
-      8. ClinicalSummary  — Groq LLM encounter summary
-    """
-
     def __init__(self, config: Optional[PipelineConfig] = None):
         self.config = config or PipelineConfig()
         self.stages = _STAGES
 
     def run(self, audio_path: str | Path) -> PipelineResult:
-        """
-        Execute the full pipeline on the given audio file.
-
-        Args:
-            audio_path: Path to the clinical audio file.
-
-        Returns:
-            PipelineResult — fully populated structured result.
-        """
         audio_path = Path(audio_path)
         pipeline_start = time.perf_counter()
 
@@ -97,7 +56,6 @@ class ClinicalPipeline:
                     f"groq_model={self.config.groq_model}")
         logger.info("=" * 60)
 
-        # Shared mutable context — stages read/write their outputs here
         context: PipelineContext = {
             "config": self.config,
             "audio_path": audio_path,
@@ -108,7 +66,7 @@ class ClinicalPipeline:
 
         for stage in self.stages:
             if pipeline_failed and not stage.optional:
-                from app.core.schemas import StageResult
+                from data_transcriptor.transcription.schemas import StageResult
                 stage_results.append(
                     StageResult(
                         name=stage.name,
@@ -130,7 +88,6 @@ class ClinicalPipeline:
                         f"Aborting remaining stages."
                     )
 
-        # ── Assemble final PipelineResult ─────────────────────────────────────
         total_elapsed = time.perf_counter() - pipeline_start
         succeeded = sum(1 for r in stage_results if r.status in (StageStatus.SUCCESS, StageStatus.SIMULATED))
         failed = sum(1 for r in stage_results if r.status == StageStatus.FAILED)
@@ -144,7 +101,6 @@ class ClinicalPipeline:
             llm_mode=context.get("llm_mode", "unknown"),
         )
 
-        # TranscriptionResult
         transcription_result = None
         if "raw_text" in context:
             transcription_result = TranscriptionResult(
@@ -154,7 +110,6 @@ class ClinicalPipeline:
                 dialogue=context.get("dialogue", []),
             )
 
-        # ClinicalIntelligenceResult
         clinical_result = None
         if "soap_note" in context and "clinical_summary" in context:
             clinical_result = ClinicalIntelligenceResult(
@@ -177,7 +132,6 @@ class ClinicalPipeline:
         return result
 
     def _log_summary(self, result: PipelineResult) -> None:
-        """Logs a formatted pipeline summary to the console."""
         logger.info("")
         logger.info("╔══════════════════════════════════════════════════════╗")
         logger.info("║          CLINICAL AI PIPELINE COMPLETE               ║")
@@ -198,9 +152,15 @@ class ClinicalPipeline:
         logger.info("╚══════════════════════════════════════════════════════╝")
 
     def _save_output(self, result: PipelineResult, audio_path: Path) -> None:
-        """Saves the PipelineResult to a structured JSON file."""
-        from app.config import OUTPUT_DIR, init_directories
-        init_directories()
+        # Load directories via backend/app/config or app config
+        # Let's import from backend.app.config since backend owns config & directories setup!
+        try:
+            from backend.app.config import OUTPUT_DIR
+        except ImportError:
+            # Fallback path just in case
+            OUTPUT_DIR = Path("data/output")
+            
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
         if self.config.output_path:
             output_file = Path(self.config.output_path)

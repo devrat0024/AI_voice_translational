@@ -2,20 +2,20 @@ import re
 import logging
 from pathlib import Path
 import pandas as pd
-from pipeline.config import init_directories
-from pipeline.ingestion import scan_all_inputs, archive_file
-from pipeline.validation import (
+from .config import init_directories
+from .ingestion import scan_all_inputs, archive_file
+from .validation import (
     validate_patient_records,
     validate_audio_file,
     validate_document_file,
     validate_patient_reference
 )
-from pipeline.preprocessing import (
+from .preprocessing import (
     preprocess_patient_row,
     preprocess_audio,
     preprocess_medical_document
 )
-from pipeline.storage import (
+from .storage import (
     get_connection,
     init_db,
     insert_patient,

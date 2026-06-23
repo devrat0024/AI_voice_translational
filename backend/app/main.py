@@ -1,28 +1,45 @@
+"""
+backend/app/main.py — FastAPI Application & Route Definitions
+"""
+import shutil
+import logging
+from pathlib import Path
+
 from fastapi import FastAPI, Depends, HTTPException, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import timedelta
-from pathlib import Path
-import os
 
-from app.database import engine, Base, get_db
-from app import models, schemas, auth
-from app.services.upload import save_uploaded_file
-from app.services.transcription import run_transcription_pipeline
-from app.services.ner import run_ner_extraction
-from app.services.summary import run_medical_correction, run_soap_generation, run_clinical_summary
+from backend.app.database import engine, Base, get_db
+from backend.app import models, schemas, auth
+from backend.app.config import UPLOAD_DIR, HF_TOKEN
+from data_transcriptor.transcription.medical_ner import MedicalEntityExtractor
+from data_transcriptor.transcription.llm_layer import ClinicalIntelligenceLayer
+from data_transcriptor.transcription.pipeline import ClinicalTranscriptionPipeline
+from data_transcriptor.transcription.runner import ClinicalPipeline
+from data_transcriptor.transcription.schemas import PipelineConfig
 
-# Automatically create database tables on startup
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
+
+# Try to get GROQ_MODEL from config
+try:
+    from backend.app.config import GROQ_MODEL
+except ImportError:
+    GROQ_MODEL = "llama-3.3-70b-versatile"
+
+# Singleton AI components loaded once at startup
+_ner_extractor = MedicalEntityExtractor(mode="auto")
+_intel_layer = ClinicalIntelligenceLayer(model_name=GROQ_MODEL)
 
 app = FastAPI(
-    title="Clinical AI Scribe Backend Services",
-    description="Scalable FastAPI microservices for speech-to-structured-data, clinical NER, and SOAP generation.",
-    version="1.0.0"
+    title="Clinical AI Scribe API",
+    description=(
+        "Unified API for speech-to-structured-data, clinical NER, "
+        "SOAP note generation, and ETL data pipeline management."
+    ),
+    version="2.0.0",
 )
 
-# Configure CORS for local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -31,15 +48,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ----------------- AUTHENTICATION ENDPOINTS -----------------
 
-@app.post("/auth/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED)
+@app.on_event("startup")
+async def on_startup():
+    """Initializes directories and creates DB tables on startup."""
+    from backend.app.config import load_env_file
+    load_env_file()
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    Base.metadata.create_all(bind=engine)
+    logger.info("Startup complete. Database tables verified/initialized.")
+
+
+@app.get("/", tags=["Health"])
+def read_root():
+    return {"message": "Welcome to the Clinical AI Scribe API. Visit /docs for the Swagger UI."}
+
+
+# ── Authentication ────────────────────────────────────────────────────────────
+@app.post("/auth/register", response_model=schemas.UserOut, status_code=status.HTTP_201_CREATED, tags=["Auth"])
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    """Registers a new user (clinician) with a hashed password."""
+    """Registers a new clinician account with a bcrypt-hashed password."""
     db_user = db.query(models.User).filter(models.User.username == user_in.username).first()
     if db_user:
         raise HTTPException(status_code=400, detail="Username already registered")
-    
     hashed_pwd = auth.get_password_hash(user_in.password)
     new_user = models.User(username=user_in.username, hashed_password=hashed_pwd)
     db.add(new_user)
@@ -47,9 +78,10 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
     db.refresh(new_user)
     return new_user
 
-@app.post("/auth/token", response_model=schemas.Token)
+
+@app.post("/auth/token", response_model=schemas.Token, tags=["Auth"])
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    """Authenticates credentials and returns a JWT access token."""
+    """Authenticates credentials and returns a signed JWT access token."""
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -57,176 +89,175 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
     access_token = auth.create_access_token(data={"sub": user.username})
     return {"access_token": access_token, "token_type": "bearer"}
 
-# ----------------- CLINICAL PIPELINE ENDPOINTS (PROTECTED) -----------------
 
-@app.post("/upload", response_model=schemas.AudioRecordOut)
+# ── Audio Upload ──────────────────────────────────────────────────────────────
+@app.post("/upload", response_model=schemas.AudioRecordOut, tags=["Clinical Pipeline"])
 def upload_audio(
     file: UploadFile = File(...),
     current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Uploads a clinical audio file and registers it in the database."""
-    # Validate extension
     file_ext = Path(file.filename).suffix.lower()
-    if file_ext not in [".mp3", ".wav", ".m4a", ".ogg"]:
+    if file_ext not in {".mp3", ".wav", ".m4a", ".ogg"}:
         raise HTTPException(status_code=400, detail="Unsupported audio file format.")
-    
     try:
-        saved_path = save_uploaded_file(file)
-        
-        # Save record in database
+        destination = UPLOAD_DIR / file.filename
+        with destination.open("wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
         audio_record = models.AudioRecord(
             filename=file.filename,
-            filepath=str(saved_path.resolve()),
-            owner_id=current_user.id
+            filepath=str(destination.resolve()),
+            owner_id=current_user.id,
         )
         db.add(audio_record)
         db.commit()
         db.refresh(audio_record)
-        
         return audio_record
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to save file: {str(e)}")
 
-@app.post("/transcribe", response_model=schemas.TranscribeResponse)
+
+# ── Transcription ─────────────────────────────────────────────────────────────
+@app.post("/transcribe", response_model=schemas.TranscribeResponse, tags=["Clinical Pipeline"])
 def transcribe_audio(
     audio_id: int,
     current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Executes diarized speech-to-text transcription on the registered audio file."""
+    """Runs diarized Whisper speech-to-text on the registered audio file."""
     record = db.query(models.AudioRecord).filter(
         models.AudioRecord.id == audio_id,
-        models.AudioRecord.owner_id == current_user.id
+        models.AudioRecord.owner_id == current_user.id,
     ).first()
-    
     if not record:
         raise HTTPException(status_code=404, detail="Audio record not found or access denied.")
-    
+
     audio_file_path = Path(record.filepath)
     if not audio_file_path.exists():
         raise HTTPException(status_code=404, detail="Audio file missing from server storage.")
-    
+
     try:
-        pipeline_results = run_transcription_pipeline(audio_file_path)
-        
-        # Save transcript to DB if clinical note doesn't exist yet
-        note = db.query(models.ClinicalNote).filter(models.ClinicalNote.audio_record_id == audio_id).first()
+        pipeline = ClinicalTranscriptionPipeline(whisper_model="tiny", hf_token=HF_TOKEN)
+        pipeline_results = pipeline.run_pipeline(audio_file_path)
+
+        note = db.query(models.ClinicalNote).filter(
+            models.ClinicalNote.audio_record_id == audio_id
+        ).first()
         if not note:
-            note = models.ClinicalNote(
-                audio_record_id=audio_id,
-                transcript=pipeline_results["full_text"]
-            )
+            note = models.ClinicalNote(audio_record_id=audio_id, transcript=pipeline_results["full_text"])
             db.add(note)
         else:
             note.transcript = pipeline_results["full_text"]
         db.commit()
 
-        # Format output
         dialogue = [
             schemas.DialogueTurn(
-                speaker=turn["speaker"],
-                start=turn["start"],
-                end=turn["end"],
-                text=turn["text"]
-            ) for turn in pipeline_results["dialogue"]
+                speaker=turn["speaker"], start=turn["start"], end=turn["end"], text=turn["text"]
+            )
+            for turn in pipeline_results["dialogue"]
         ]
-        
         return schemas.TranscribeResponse(
-            audio_id=audio_id,
-            full_text=pipeline_results["full_text"],
-            dialogue=dialogue
+            audio_id=audio_id, full_text=pipeline_results["full_text"], dialogue=dialogue
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Transcription failed: {str(e)}")
 
-@app.post("/ner", response_model=schemas.NERResponse)
+
+# ── Medical NER ───────────────────────────────────────────────────────────────
+@app.post("/ner", response_model=schemas.NERResponse, tags=["Clinical Pipeline"])
 def extract_ner(
     payload: schemas.NERRequest,
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_current_user),
 ):
-    """Extracts medical clinical entities (symptoms, drugs) from text."""
+    """Extracts medical entities (symptoms, drugs) from clinical text."""
     try:
-        entities = run_ner_extraction(payload.text)
+        entities = _ner_extractor.extract_entities(payload.text)
         return schemas.NERResponse(
             symptom=entities.get("symptom", "None"),
-            medicine=entities.get("medicine", "None")
+            medicine=entities.get("medicine", "None"),
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"NER extraction failed: {str(e)}")
 
-@app.post("/summary", response_model=schemas.SummaryResponse)
+
+# ── Clinical Summary ──────────────────────────────────────────────────────────
+@app.post("/summary", response_model=schemas.SummaryResponse, tags=["Clinical Pipeline"])
 def generate_summary(
     payload: schemas.SummaryRequest,
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_current_user),
 ):
     """Generates a concise clinical summary from raw clinical text."""
     try:
-        corrected_text = run_medical_correction(payload.text)
-        summary_text = run_clinical_summary(corrected_text)
-        return schemas.SummaryResponse(summary=summary_text)
+        corrected = _intel_layer.medical_correction(payload.text)
+        summary = _intel_layer.generate_clinical_summary(corrected)
+        return schemas.SummaryResponse(summary=summary)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Summary generation failed: {str(e)}")
 
-@app.post("/soap", response_model=schemas.SOAPResponse)
+
+# ── SOAP Note ─────────────────────────────────────────────────────────────────
+@app.post("/soap", response_model=schemas.SOAPResponse, tags=["Clinical Pipeline"])
 def generate_soap(
     payload: schemas.SOAPRequest,
-    current_user: models.User = Depends(auth.get_current_user)
+    current_user: models.User = Depends(auth.get_current_user),
 ):
-    """Generates a Subjective, Objective, Assessment, and Plan (SOAP) clinical note from text."""
+    """Generates a SOAP (Subjective, Objective, Assessment, Plan) clinical note."""
     try:
-        corrected_text = run_medical_correction(payload.text)
-        soap_text = run_soap_generation(corrected_text)
-        return schemas.SOAPResponse(soap_note=soap_text)
+        corrected = _intel_layer.medical_correction(payload.text)
+        soap = _intel_layer.generate_soap_note(corrected)
+        return schemas.SOAPResponse(soap_note=soap)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"SOAP generation failed: {str(e)}")
 
-@app.post("/process", response_model=schemas.ClinicalPipelineResultResponse)
+
+# ── End-to-End Processing ─────────────────────────────────────────────────────
+@app.post("/process", response_model=schemas.ClinicalPipelineResultResponse, tags=["Clinical Pipeline"])
 def process_audio_end_to_end(
     audio_id: int,
+    whisper_model: str = "tiny",
     current_user: models.User = Depends(auth.get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
-    """Runs transcription, diarization, medical NER, SOAP, and Summary end-to-end on an audio record."""
+    """Runs the full structured 8-stage pipeline on an audio record.
+
+    Stages: audio_load → transcription → diarization → alignment →
+            med_correction → ner_extraction → soap_generation → clinical_summary
+    """
     record = db.query(models.AudioRecord).filter(
         models.AudioRecord.id == audio_id,
-        models.AudioRecord.owner_id == current_user.id
+        models.AudioRecord.owner_id == current_user.id,
     ).first()
-    
     if not record:
         raise HTTPException(status_code=404, detail="Audio record not found or access denied.")
-    
+
     audio_file_path = Path(record.filepath)
     if not audio_file_path.exists():
         raise HTTPException(status_code=404, detail="Audio file missing from server storage.")
-    
+
     try:
-        # 1. Transcribe & Diarize
-        pipeline_results = run_transcription_pipeline(audio_file_path)
-        full_text = pipeline_results["full_text"]
-        
-        # 2. Medical Correction
-        corrected_text = run_medical_correction(full_text)
-        
-        # 3. Medical NER
-        entities = run_ner_extraction(corrected_text)
-        
-        # 4. SOAP & Summary
-        soap_text = run_soap_generation(corrected_text)
-        summary_text = run_clinical_summary(corrected_text)
-        
-        # 5. Database Save/Update
-        note = db.query(models.ClinicalNote).filter(models.ClinicalNote.audio_record_id == audio_id).first()
+        config = PipelineConfig(whisper_model=whisper_model, hf_token=HF_TOKEN)
+        pipeline = ClinicalPipeline(config)
+        result = pipeline.run(audio_file_path)
+
+        # Persist transcript & SOAP to DB
+        corrected_text = result.transcription.corrected_text if result.transcription else ""
+        soap_text = result.clinical_intelligence.soap_note.raw if result.clinical_intelligence else ""
+        summary_text = result.clinical_intelligence.clinical_summary if result.clinical_intelligence else ""
+
+        note = db.query(models.ClinicalNote).filter(
+            models.ClinicalNote.audio_record_id == audio_id
+        ).first()
         if not note:
             note = models.ClinicalNote(
                 audio_record_id=audio_id,
                 transcript=corrected_text,
                 soap_note=soap_text,
-                summary=summary_text
+                summary=summary_text,
             )
             db.add(note)
         else:
@@ -235,28 +266,21 @@ def process_audio_end_to_end(
             note.summary = summary_text
         db.commit()
 
-        # Format output
+        # Map to response schema
         dialogue = [
-            schemas.DialogueTurn(
-                speaker=turn["speaker"],
-                start=turn["start"],
-                end=turn["end"],
-                text=turn["text"]
-            ) for turn in pipeline_results["dialogue"]
+            schemas.DialogueTurn(speaker=t.speaker, start=t.start, end=t.end, text=t.text)
+            for t in (result.transcription.dialogue if result.transcription else [])
         ]
-        
+        entities = result.medical_entities
+
         return schemas.ClinicalPipelineResultResponse(
             audio_id=audio_id,
             full_text=corrected_text,
             dialogue=dialogue,
-            symptom=entities.get("symptom", "None"),
-            medicine=entities.get("medicine", "None"),
+            symptom=entities.primary_symptom if entities else "None",
+            medicine=entities.primary_medicine if entities else "None",
             soap_note=soap_text,
-            clinical_summary=summary_text
+            clinical_summary=summary_text,
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"End-to-end processing failed: {str(e)}")
-
-@app.get("/")
-def read_root():
-    return {"message": "Welcome to the Clinical AI Scribe API. Access docs at /docs."}
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")

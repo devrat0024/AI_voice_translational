@@ -1,18 +1,14 @@
 """
-Stage 7 — SOAP Note Generation (Groq LLM / Simulation Fallback)
-
-Generates a structured Subjective/Objective/Assessment/Plan clinical note.
-Writes to context: 'soap_note' (SOAPNote)
+Stage 7 — SOAP Note Generation
 """
 from __future__ import annotations
 
 import re
 from typing import Optional
 
-from app.core.schemas import SOAPNote, StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import SOAPNote, StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
-# Section header patterns to parse LLM output into structured fields
 _SECTION_PATTERNS = {
     "subjective":  re.compile(r"###?\s*Subjective\s*\n(.*?)(?=###?\s*Objective|\Z)", re.S | re.I),
     "objective":   re.compile(r"###?\s*Objective\s*\n(.*?)(?=###?\s*Assessment|\Z)", re.S | re.I),
@@ -22,7 +18,6 @@ _SECTION_PATTERNS = {
 
 
 def _parse_soap(raw: str) -> tuple[str, str, str, str]:
-    """Parse a SOAP note string into its four sections."""
     results = {}
     for key, pattern in _SECTION_PATTERNS.items():
         match = pattern.search(raw)
@@ -41,10 +36,9 @@ class SOAPStage(PipelineStage):
     optional = True
 
     def _execute(self, context: PipelineContext) -> tuple[StageStatus, Optional[str]]:
-        # Reuse the already-initialized LLM layer from the correction stage if available
         llm = context.get("llm_layer")
         if llm is None:
-            from app.transcription.llm_layer import ClinicalIntelligenceLayer
+            from data_transcriptor.transcription.llm_layer import ClinicalIntelligenceLayer
             config = context["config"]
             llm = ClinicalIntelligenceLayer(
                 model_name=config.groq_model,

@@ -1,15 +1,12 @@
 """
-Stage 5 — Medical Terminology Correction (Groq LLM / Rules Fallback)
-
-Corrects misspelled medical terms, drug names, and clinical jargon.
-Writes to context: 'corrected_text', 'llm_mode'
+Stage 5 — Medical Terminology Correction
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from app.core.schemas import StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 class MedicalCorrectionStage(PipelineStage):
@@ -18,7 +15,7 @@ class MedicalCorrectionStage(PipelineStage):
     optional = True
 
     def _execute(self, context: PipelineContext) -> tuple[StageStatus, Optional[str]]:
-        from app.transcription.llm_layer import ClinicalIntelligenceLayer
+        from data_transcriptor.transcription.llm_layer import ClinicalIntelligenceLayer
 
         config = context["config"]
         raw_text: str = context.get("raw_text", "")
@@ -30,9 +27,8 @@ class MedicalCorrectionStage(PipelineStage):
 
         corrected = llm.medical_correction(raw_text)
         context["corrected_text"] = corrected
-        context["llm_layer"] = llm  # Reuse in subsequent LLM stages
+        context["llm_layer"] = llm
 
-        # Detect whether Groq API was actually used
         used_api = llm.use_api
         context["llm_mode"] = "groq_api" if used_api else "simulation"
 

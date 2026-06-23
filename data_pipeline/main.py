@@ -1,9 +1,9 @@
 import argparse
 import sys
 import logging
-from pipeline.config import init_directories, DB_PATH
-from pipeline.storage import init_db, get_connection, get_stats
-from pipeline.etl import run_etl_pipeline
+from data_pipeline.pipeline.config import init_directories, DB_PATH
+from data_pipeline.pipeline.storage import init_db, get_connection, get_stats
+from data_pipeline.pipeline.etl import run_etl_pipeline
 
 # Configure Logging
 logging.basicConfig(

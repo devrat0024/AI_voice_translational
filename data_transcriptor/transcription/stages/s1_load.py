@@ -1,17 +1,13 @@
 """
 Stage 1 — Audio Load & Validation
-
-Validates the audio file exists and is readable.
-Extracts file metadata (size, format, duration if possible).
-Writes to context: 'audio_path', 'audio_metadata'
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
 
-from app.core.schemas import AudioMetadata, StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import AudioMetadata, StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 class AudioLoadStage(PipelineStage):
@@ -29,7 +25,6 @@ class AudioLoadStage(PipelineStage):
         if size_bytes == 0:
             raise ValueError("Audio file is empty (0 bytes).")
 
-        # Try to extract duration via pydub (non-blocking — skip if unavailable)
         duration = None
         sample_rate = None
         channels = None
@@ -44,7 +39,7 @@ class AudioLoadStage(PipelineStage):
             sample_rate = audio.frame_rate
             channels = audio.channels
         except Exception:
-            pass  # Duration is optional — don't fail the stage
+            pass
 
         metadata = AudioMetadata(
             file_path=str(audio_path.resolve()),

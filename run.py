@@ -26,14 +26,6 @@ ETL Commands:
   run-etl              Ingest and process all files in data/raw/
   show-stats           Show ETL database record counts
   query "SQL"          Execute a raw SQL query on the ETL database
-
-Examples:
-  python run.py api
-  python run.py cli --audio my_recording.mp3 --whisper-model base
-  python run.py etl init-db
-  python run.py etl run-etl
-  python run.py etl show-stats
-  python run.py etl query "SELECT * FROM patients"
 """
 
 import argparse
@@ -42,7 +34,7 @@ import logging
 import sys
 from pathlib import Path
 
-# ── Logging Configuration ─────────────────────────────────────────────────────
+# Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -51,9 +43,6 @@ logging.basicConfig(
 logger = logging.getLogger("run")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# API MODE
-# ══════════════════════════════════════════════════════════════════════════════
 def run_api(args):
     """Starts the FastAPI/Uvicorn server."""
     import os
@@ -65,17 +54,14 @@ def run_api(args):
 
     print(f"\n🚀  Starting Clinical AI Scribe API at http://{host}:{port}")
     print(f"📖  Swagger UI available at http://{host}:{port}/docs\n")
-    uvicorn.run("app.api.routes:app", host=host, port=port, reload=reload)
+    uvicorn.run("backend.app.main:app", host=host, port=port, reload=reload)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# CLI TRANSCRIPTION MODE
-# ══════════════════════════════════════════════════════════════════════════════
 def run_cli(args):
     """Runs the full structured clinical pipeline from the command line."""
-    from app.config import HF_TOKEN
-    from app.core.runner import ClinicalPipeline
-    from app.core.schemas import PipelineConfig
+    from backend.app.config import HF_TOKEN
+    from data_transcriptor.transcription.runner import ClinicalPipeline
+    from data_transcriptor.transcription.schemas import PipelineConfig
 
     # Resolve audio file path
     audio_path = None
@@ -83,8 +69,8 @@ def run_cli(args):
         audio_path = Path(args.audio)
     else:
         default_locations = [
-            Path("AI_voice_translational/Catching Up With Friends Audio 2.mp3"),
-            Path("AI_voice_translational/sample.mp3"),
+            Path("Catching Up With Friends Audio 2.mp3"),
+            Path("sample.mp3"),
             Path("data/raw/audio/sample.mp3"),
         ]
         for loc in default_locations:
@@ -117,7 +103,6 @@ def run_cli(args):
         pipeline = ClinicalPipeline(config)
         result = pipeline.run(audio_path)
 
-        # ── Print structured output to console ────────────────────────────────
         summary = result.summary_dict()
         print("\n" + "=" * 60)
         print("PIPELINE RESULT SUMMARY")
@@ -142,7 +127,7 @@ def run_cli(args):
             print(result.clinical_intelligence.clinical_summary)
 
         print("\n" + "=" * 60)
-        print(f"Full structured JSON saved to: data/output/")
+        print(f"Full structured JSON saved.")
         print("=" * 60)
 
     except Exception as e:
@@ -150,14 +135,11 @@ def run_cli(args):
         sys.exit(1)
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ETL MODE
-# ══════════════════════════════════════════════════════════════════════════════
 def run_etl(args):
     """Runs ETL pipeline commands."""
-    from app.pipeline.config import init_directories, DB_PATH
-    from app.pipeline.storage import init_db, get_connection, get_stats
-    from app.pipeline.etl import run_etl_pipeline
+    from data_pipeline.pipeline.config import init_directories, DB_PATH
+    from data_pipeline.pipeline.storage import init_db, get_connection, get_stats
+    from data_pipeline.pipeline.etl import run_etl_pipeline
 
     if args.etl_command == "init-db":
         logger.info("Initializing ETL directories...")
@@ -217,9 +199,6 @@ def run_etl(args):
         print("ETL commands: init-db | run-etl | show-stats | query \"SQL\"")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ARGUMENT PARSER
-# ══════════════════════════════════════════════════════════════════════════════
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python run.py",
@@ -228,13 +207,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="mode", help="Execution mode")
 
-    # ── api ───────────────────────────────────────────────────────────────────
+    # api sub-command
     api_parser = subparsers.add_parser("api", help="Start the FastAPI REST API server")
     api_parser.add_argument("--host", type=str, default="", help="Server host (default: 127.0.0.1)")
     api_parser.add_argument("--port", type=int, default=0, help="Server port (default: 8000)")
     api_parser.add_argument("--reload", action="store_true", help="Enable hot-reload")
 
-    # ── cli ───────────────────────────────────────────────────────────────────
+    # cli sub-command
     cli_parser = subparsers.add_parser("cli", help="Run CLI transcription pipeline")
     cli_parser.add_argument("--audio", type=str, default="", help="Path to audio file")
     cli_parser.add_argument("--whisper-model", type=str, default="tiny",
@@ -247,7 +226,7 @@ def build_parser() -> argparse.ArgumentParser:
                              help="Groq model name")
     cli_parser.add_argument("--output", type=str, default="", help="Output JSON file path")
 
-    # ── etl ───────────────────────────────────────────────────────────────────
+    # etl sub-command
     etl_parser = subparsers.add_parser("etl", help="Run ETL data pipeline commands")
     etl_subparsers = etl_parser.add_subparsers(dest="etl_command")
     etl_subparsers.add_parser("init-db", help="Initialize ETL database and directories")

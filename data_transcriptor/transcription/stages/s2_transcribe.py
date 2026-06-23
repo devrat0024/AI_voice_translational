@@ -1,15 +1,12 @@
 """
 Stage 2 — Whisper Speech Recognition (ASR)
-
-Transcribes the audio file using OpenAI Whisper.
-Writes to context: 'raw_text', 'segments'
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from app.core.schemas import StageStatus, TranscriptSegment
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import StageStatus, TranscriptSegment
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 class TranscriptionStage(PipelineStage):
@@ -18,7 +15,7 @@ class TranscriptionStage(PipelineStage):
     optional = False
 
     def _execute(self, context: PipelineContext) -> tuple[StageStatus, Optional[str]]:
-        from app.transcription.speech_recognition import SpeechRecognizer
+        from data_transcriptor.transcription.speech_recognition import SpeechRecognizer
 
         config = context["config"]
         audio_path = context["audio_path"]

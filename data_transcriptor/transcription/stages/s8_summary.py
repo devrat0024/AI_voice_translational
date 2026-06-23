@@ -1,15 +1,12 @@
 """
-Stage 8 — Clinical Summary Generation (Groq LLM / Simulation Fallback)
-
-Generates a concise clinical summary of the encounter.
-Writes to context: 'clinical_summary' (str)
+Stage 8 — Clinical Summary Generation
 """
 from __future__ import annotations
 
 from typing import Optional
 
-from app.core.schemas import StageStatus
-from app.core.stages.base import PipelineContext, PipelineStage
+from data_transcriptor.transcription.schemas import StageStatus
+from data_transcriptor.transcription.base_stage import PipelineContext, PipelineStage
 
 
 class ClinicalSummaryStage(PipelineStage):
@@ -20,7 +17,7 @@ class ClinicalSummaryStage(PipelineStage):
     def _execute(self, context: PipelineContext) -> tuple[StageStatus, Optional[str]]:
         llm = context.get("llm_layer")
         if llm is None:
-            from app.transcription.llm_layer import ClinicalIntelligenceLayer
+            from data_transcriptor.transcription.llm_layer import ClinicalIntelligenceLayer
             config = context["config"]
             llm = ClinicalIntelligenceLayer(
                 model_name=config.groq_model,

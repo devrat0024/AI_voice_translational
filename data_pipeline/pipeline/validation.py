@@ -3,7 +3,7 @@ import pandas as pd
 import logging
 from pathlib import Path
 from pydub import AudioSegment
-from pipeline.config import SUPPORTED_AUDIO_EXTENSIONS, SUPPORTED_DOCUMENT_EXTENSIONS
+from .config import SUPPORTED_AUDIO_EXTENSIONS, SUPPORTED_DOCUMENT_EXTENSIONS
 
 logger = logging.getLogger(__name__)
 
