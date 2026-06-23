@@ -1,13 +1,11 @@
-import sys
+"""
+backend/app/services/transcription.py
+LEGACY FILE — now delegates to the unified app package.
+"""
 from pathlib import Path
-from app.config import TRANSCRIPTOR_DIR
+from app.transcription.pipeline import ClinicalTranscriptionPipeline
+from app.config import HF_TOKEN
 
-# Ensure transcription package imports work
-if str(TRANSCRIPTOR_DIR) not in sys.path:
-    sys.path.append(str(TRANSCRIPTOR_DIR))
-
-from transcription.pipeline import ClinicalTranscriptionPipeline
-from transcription.config import HF_TOKEN
 
 def run_transcription_pipeline(audio_path: Path) -> dict:
     """Executes the complete diarized transcription pipeline on the given audio file Path."""

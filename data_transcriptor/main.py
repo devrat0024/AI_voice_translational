@@ -3,8 +3,8 @@ import json
 import logging
 import sys
 from pathlib import Path
-from transcription.config import init_directories, OUTPUT_DIR, HF_TOKEN
-from transcription.pipeline import ClinicalTranscriptionPipeline
+from app.config import init_directories, OUTPUT_DIR, HF_TOKEN
+from app.transcription.pipeline import ClinicalTranscriptionPipeline
 
 # Configure Logging
 logging.basicConfig(
@@ -84,7 +84,7 @@ def main():
         print("=" * 50)
 
         # Initialize Clinical Intelligence LLM Layer
-        from transcription.llm_layer import ClinicalIntelligenceLayer
+        from app.transcription.llm_layer import ClinicalIntelligenceLayer
         logger.info("Initializing Clinical LLM Intelligence Layer (Groq)...")
         llm_layer = ClinicalIntelligenceLayer(
             model_name=args.groq_model,

@@ -1,8 +1,9 @@
 import logging
 from pathlib import Path
-from transcription.speech_recognition import SpeechRecognizer
-from transcription.diarization import SpeakerDiarizer
-from transcription.medical_ner import MedicalEntityExtractor
+from .speech_recognition import SpeechRecognizer
+from .diarization import SpeakerDiarizer
+from .medical_ner import MedicalEntityExtractor
+
 
 logger = logging.getLogger(__name__)
 

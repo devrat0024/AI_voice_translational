@@ -1,6 +1,7 @@
 import re
 import logging
-from transcription.config import SCISPACY_MODEL, NER_TRANSFORMERS_MODEL
+from .config import SCISPACY_MODEL, NER_TRANSFORMERS_MODEL
+
 
 logger = logging.getLogger(__name__)
 
