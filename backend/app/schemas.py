@@ -87,3 +87,54 @@ class ClinicalPipelineResultResponse(BaseModel):
     medicine: str
     soap_note: str
     clinical_summary: str
+
+
+# ── Analytics & Feedback Schemas ──────────────────────────────────────────────
+class DoctorFeedbackCreate(BaseModel):
+    doctor_rating: int  # 1 to 5 stars
+    feedback_text: Optional[str] = None
+
+
+class RecentReportOut(BaseModel):
+    consultation_id: int
+    timestamp: datetime
+    audio_duration: float
+    processing_time: float
+
+
+class DoctorDashboardResponse(BaseModel):
+    consultations_completed: int
+    patients_processed: int
+    average_summary_time: float
+    time_saved_minutes: float
+    recent_reports: List[RecentReportOut]
+
+
+class ProductDashboardResponse(BaseModel):
+    dau: int
+    wau: int
+    mau: int
+    average_wer: float
+    average_f1: float
+    average_latency: float
+
+
+class AdminDashboardResponse(BaseModel):
+    total_doctors: int
+    total_consultations: int
+    total_patients: int
+    system_usage_percentage: float
+    department_usage: dict
+    time_saved_hours: float
+    average_ai_quality: float
+
+
+class ReportResponse(BaseModel):
+    consultations_processed: int
+    average_wer: float
+    average_f1: float
+    average_latency: float
+    time_saved_hours: float
+    adoption_rate: float
+    retention_rate: float
+
