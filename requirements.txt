@@ -1,0 +1,31 @@
+# ── Core API Server ──────────────────────────────────────────────
+fastapi
+uvicorn
+sqlalchemy
+python-multipart
+python-jose[cryptography]
+bcrypt
+passlib[bcrypt]
+
+# ── Speech Recognition & Diarization ─────────────────────────────
+openai-whisper
+pyannote.audio
+torch
+torchaudio
+
+# ── Medical NER ───────────────────────────────────────────────────
+spacy
+scispacy
+transformers
+
+# ── ETL / Audio Preprocessing ─────────────────────────────────────
+pandas>=2.0.0
+pydub>=0.25.1
+static-ffmpeg>=2.5
+pypdf>=4.0.0
+
+# ── LLM Layer ─────────────────────────────────────────────────────
+groq
+
+# ── Python 3.13+ Compatibility ────────────────────────────────────
+audioop-lts; python_version >= "3.13"

@@ -1,0 +1,86 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+
+# ── Virtual Environments ──────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+
+# ── Environment & Secrets ─────────────────────────────────────────────────────
+.env
+*.env.local
+*.env.*.local
+
+# ── IDE & Editor ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── AI Model Caches ───────────────────────────────────────────────────────────
+# Whisper model weights (downloaded at runtime)
+~/.cache/whisper/
+*.pt
+
+# ── Database Files ────────────────────────────────────────────────────────────
+*.db
+*.sqlite
+*.sqlite3
+
+# ── Pipeline Data Directories ─────────────────────────────────────────────────
+# Raw ingestion input data (patient PII)
+data/raw/
+# Processed staging data
+data/processed/
+# Archive and failed file queues
+data/archive/
+data/failed/
+# Pipeline output JSONs and transcripts
+data/output/
+# ETL & API SQLite databases
+data/database/
+
+# ── API Upload Storage ────────────────────────────────────────────────────────
+uploads/
+
+# ── Jupyter Notebooks (keep .ipynb but ignore checkpoints) ───────────────────
+.ipynb_checkpoints/
+
+# ── Audio Samples (large binary files) ───────────────────────────────────────
+*.mp3
+*.wav
+*.m4a
+*.ogg
+*.flac
+*.aac
+
+# ── Old sub-project runtime data (kept for reference but data is local only) ──
+data_pipeline/data/
+data_transcriptor/data/
+backend/uploads/
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── MyPy / Type Checking ──────────────────────────────────────────────────────
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# ── Pytest ────────────────────────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage

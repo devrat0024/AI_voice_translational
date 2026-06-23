@@ -1,0 +1,9 @@
+openai-whisper
+pyannote.audio
+spacy
+scispacy
+transformers
+torch
+torchaudio
+audioop-lts; python_version >= "3.13"
+groq
